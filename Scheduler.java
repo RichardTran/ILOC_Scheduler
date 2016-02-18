@@ -56,7 +56,7 @@ class Node{
 public class Scheduler{
 	
 	// Using an ArrayList is ideal as each index would represent a line number of a code block
-	static ArrayList<LineInfo> ParseFileInput(){
+	static ArrayList<LineInfo> LoadLineInfo(){
 		Scanner scan = new Scanner(System.in);
 		ArrayList<LineInfo> codeBlock = new ArrayList<LineInfo>();
 		String cmd = null;
@@ -92,19 +92,47 @@ public class Scheduler{
 		return codeBlock;
 	}
 
-	/*
-	static Node SetupTree(ArrayList<String> codeBlock){
-		Hashtable<String, Integer> ht = new Hashtable<String, Integer>();
-		int numOfLines = codeBlock.length() - 1;
+	static Node CreateNode(String key){
+		
+	}
+
+	
+	static Node SetupTree(ArrayList<LineInfo> codeBlock){
+		Hashtable<String, Integer> htr = new Hashtable<String, Integer>(); // hash table of registers there were read from
+		Hashtable<String, Integer> htw = new Hashtable<String, Integer>(); // hash table of registers written to
+		
+		int lineNumber = codeBlock.size() - 1;
+
 		
 		// from bottom to top, scan block of code, and create dependency graph
-		while(numOfLines >= 0){
-			codeBlock.get(numOfLines);
+		while(lineNumber >= 0){
+			LineInfo li = codeBlock.get(lineNumber);
+			String key = null;
+			String[] reads = li.regReads;
+			String[] writes = li.regWrites;
+			if(reads[1]!=null && reads[0].equalsIgnoreCase("r0")){
+				int addr = 1024 + Integer.parseInt(reads[1]); //assumption that r0 always is 1024.
+				key = String.valueOf(addr);
+			}
+			else {
+				if(reads[0]!=null){
+					key = read[0];
+					if(htw.contains(key)){
+
+					}
+					else{
+						htr.put(key,numOfLines);
+					}
+				}
+				if(reads[1]!=null){
+					key = read[1];	
+				}
+			}
 				
-		}		
+		}	
 		return null;
 	}
-	*/
+	
 	// Longest Latency Path
 	static void ScheduleA(){
 		
@@ -137,7 +165,7 @@ public class Scheduler{
 	public static void main(String[] args){
 		
 	
-		ArrayList<LineInfo> codeBlock = ParseFileInput();
+		ArrayList<LineInfo> codeBlock = LoadLineInfo();
 		TestLineInfo(codeBlock);
 		
 		// When building the dependeny graph, we do not need to track output dependencies as per assignment
