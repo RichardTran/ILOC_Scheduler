@@ -121,7 +121,7 @@ public class Scheduler{
 
 					}
 					else{
-						htr.put(key,numOfLines);
+						htr.put(key,lineNumber);
 					}
 				}
 				if(reads[1]!=null){
