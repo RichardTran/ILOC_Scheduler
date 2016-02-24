@@ -15,7 +15,6 @@ class Edge{
 class LineInfo{
 
 	int latency;
-	int 	
 	String cmd;
 	String[] regReads;
 	String[] regWrites;
@@ -112,7 +111,7 @@ public class Scheduler{
 	}
 	
 	// After finishing this method, DO NOT remove the entry from hash write. could be more anti-dependencies
-	static void Update_RW_Depend(LineInfo li, String key, Hashtable<String, Integer> htr, Hashtable<String, Integer> htw){
+	static void Update_RW_Depend(LineInfo li, String key, Hashtable<String, ArrayList<Integer>> htr, Hashtable<String, Integer> htw){
 		if(htw.get(key) != null){
 			// Create anti-dependencies between LineInfo nodes
 			int endLineNum = htw.get(key); // retrieve the node from hashtable with Key
@@ -130,7 +129,7 @@ public class Scheduler{
 			ArrayList<Integer> endLineNums = htr.get(key); // retrieve all lineNums that read from this register
 			int dependType = 2;
 			for(int i = 0; i < endLineNums.size(); i++){
-				endLineNum = endLineNums.get(i)
+				int endLineNum = endLineNums.get(i);
 				li.AddEdge(new Edge(endLineNum, dependType));
 			}
 			htr.remove(key);
@@ -142,30 +141,30 @@ public class Scheduler{
 
 // Used to add the registers we just read from the current line
 // searching for any depdendencies
-	static void UpdateReadHash(Hashtable htr, String key, int lineNum){
+	static void UpdateReadHash(Hashtable<String, ArrayList<Integer>> htr, String key, int lineNum){
 		if(key == null){
 			return;
 		}
-		ArrayList oldEntry = htr.get(key);
+		ArrayList<Integer> oldEntry = htr.get(key);
 		if(oldEntry != null){
 			oldEntry.add(lineNum);
 		}
 		else{
 			ArrayList<Integer> newEntry = new ArrayList<Integer>();
 			newEntry.add(lineNum); 
-			htr.add(key, newEntry);
+			htr.put(key, newEntry);
 		}
 	}
 // Used to add the registers we just wrote to, from the current lime.
 // Only need to keep track of one write.
-	static void UpdateWriteHash(Hashtable htw, String key, int lineNum){
+	static void UpdateWriteHash(Hashtable<String, Integer> htw, String key, int lineNum){
 		if(key == null){
 			return;
 		}
 		if(htw.get(key) != null){
 			htw.remove(key);
 		}
-		htw.add(key, lineNum);
+		htw.put(key, lineNum);
 	}
 
 
@@ -178,12 +177,12 @@ public class Scheduler{
  * Anti dependency indicates that it'll take one cycle, and then we can use the next line 
  *		| Value of 1 in Edge.dependType
  */	
-	static Node SetupTree(ArrayList<LineInfo> codeBlock){
-		Hashtable<String, Integer> htr = new Hashtable<String, ArrayList<Integer>>(); // hash table of regs read from
+	static ArrayList<LineInfo> SetupTree(ArrayList<LineInfo> codeBlock){
+		Hashtable<String, ArrayList<Integer>> htr = new Hashtable<String, ArrayList<Integer>>(); // hash table of regs read from
 		Hashtable<String, Integer> htw = new Hashtable<String, Integer>(); // hash table of regs written to
 	
 		int lineNumber = codeBlock.size() - 1;
-		ArrayList<Integer> = new ArrayList<Integer>();
+		ArrayList<Integer> ready = new ArrayList<Integer>();
 		
 		// from bottom to top, scan block of code, and create dependency graph
 		while(lineNumber >= 0){
@@ -233,8 +232,8 @@ public class Scheduler{
 			}
 			UpdateReadHash(htr, key1, lineNumber);
 			UpdateReadHash(htr, key2, lineNumber);
-			UpdateWriteHash(htr, key3, lineNumber);
-			UpdateWriteHash(htr, key4, lineNumber);
+			UpdateWriteHash(htw, key3, lineNumber);
+			UpdateWriteHash(htw, key4, lineNumber);
 
 			lineNumber = lineNumber - 1;
 		}
