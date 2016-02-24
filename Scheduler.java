@@ -270,10 +270,10 @@ public class Scheduler{
 	static void TestDependencies(ArrayList<LineInfo> block){
 		for(int i = 0; i < block.size(); i++){
 			ArrayList<Edge> edges = block.get(i).edges;
-			System.out.println("Node: "+ i);
+			System.out.println("Node: "+ (i+1));
 			System.out.println("Cmd: " + block.get(i).cmd);
 			for(int j = 0; j < edges.size(); j++){
-				System.out.println("To node: " + edges.get(j).endLineNum);
+				System.out.println("To node: " + (edges.get(j).endLineNum+1));
 				System.out.println("DependType: " + edges.get(j).dependType);
 				System.out.println();
 			}
