@@ -177,7 +177,7 @@ public class Scheduler{
  * Anti dependency indicates that it'll take one cycle, and then we can use the next line 
  *		| Value of 1 in Edge.dependType
  */	
-	static ArrayList<LineInfo> SetupTree(ArrayList<LineInfo> codeBlock){
+	static void SetupTree(ArrayList<LineInfo> codeBlock){
 		Hashtable<String, ArrayList<Integer>> htr = new Hashtable<String, ArrayList<Integer>>(); // hash table of regs read from
 		Hashtable<String, Integer> htw = new Hashtable<String, Integer>(); // hash table of regs written to
 	
@@ -237,7 +237,7 @@ public class Scheduler{
 
 			lineNumber = lineNumber - 1;
 		}
-		return null; // Can return an array of with two indicies; The tail, and the head
+		//return null; // Can return an array of with two indicies; The tail, and the head
 	}
 	
 	// Longest Latency Path
@@ -272,7 +272,7 @@ public class Scheduler{
 	
 		ArrayList<LineInfo> codeBlock = LoadLineInfo();
 		TestLineInfo(codeBlock);
-		
+		SetupTree(codeBlock);
 		if(args.length == 1){
 
 			if(args[0].equalsIgnoreCase("-a")){
