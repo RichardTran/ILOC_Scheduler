@@ -266,13 +266,27 @@ public class Scheduler{
 				System.out.println("Writes is: " + block.get(i).regWrites[j]);
 		}
 	}
+
+	static void TestDependencies(ArrayList<LineInfo> block){
+		for(int i = 0; i < block.size(); i++){
+			ArrayList<Edge> edges = block.get(i).edges;
+			System.out.println("Node: "+ i);
+			System.out.println("Cmd: " + block.get(i).cmd);
+			for(int j = 0; j < edges.size(); j++){
+				System.out.println("To node: " + edges.get(j).endLineNum);
+				System.out.println("DependType: " + edges.get(j).dependType);
+				System.out.println();
+			}
+		}
+	}
 	
 
 	public static void main(String[] args){		
 	
 		ArrayList<LineInfo> codeBlock = LoadLineInfo();
-		TestLineInfo(codeBlock);
-		SetupTree(codeBlock);
+	//	TestLineInfo(codeBlock);
+		SetupTree(codeBlock); // codeBlock now has edges in each object
+		TestDependencies(codeBlock);
 		if(args.length == 1){
 
 			if(args[0].equalsIgnoreCase("-a")){
