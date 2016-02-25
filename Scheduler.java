@@ -111,30 +111,40 @@ public class Scheduler{
 	}
 	
 	// After finishing this method, DO NOT remove the entry from hash write. could be more anti-dependencies
-	static void Update_RW_Depend(LineInfo li, String key, Hashtable<String, ArrayList<Integer>> htr, Hashtable<String, Integer> htw){
+	// Returns true if it creates a dependency. False otherwise
+	static void Update_RW_Depend(LineInfo li, String key, Hashtable<String, Integer> htw, ArrayList<Integer> ready){
 		if(htw.get(key) != null){
 			// Create anti-dependencies between LineInfo nodes
 			int endLineNum = htw.get(key); // retrieve the node from hashtable with Key
 			int dependType = 1;
 			li.AddEdge(new Edge(endLineNum, dependType));
+			if(ready.contains(endLineNum)){
+				Integer x = endLineNum;
+				ready.remove((Integer)x);
+			}
 		}
+
 	}
 	
 	// If a true dependency occurs, remove the key entry and it's values from the reads hash table as.
 	// Steps: Create the dependencies
 	// 		  Remove register (example r1) from the reads, and its arraylist
 	//  
-	static void Update_WR_Depend(LineInfo li, String key, Hashtable<String, ArrayList<Integer>> htr, Hashtable<String, Integer> htw){
+	// Returns true if it creates a dependency. False otherwise
+	static void Update_WR_Depend(LineInfo li, String key, Hashtable<String, ArrayList<Integer>> htr, ArrayList<Integer> ready){
 		if(htr.get(key) != null){
 			ArrayList<Integer> endLineNums = htr.get(key); // retrieve all lineNums that read from this register
 			int dependType = 2;
 			for(int i = 0; i < endLineNums.size(); i++){
 				int endLineNum = endLineNums.get(i);
+				if(ready.contains(endLineNum)){
+					Integer x = endLineNum;
+					ready.remove((Integer)x);
+				}
 				li.AddEdge(new Edge(endLineNum, dependType));
 			}
 			htr.remove(key);
 		}
-
 		// The "else" case is that we have not have not read from the register before,
 		// and therefore we do not need to do anything else.
 	}
@@ -147,8 +157,9 @@ public class Scheduler{
 		}
 		ArrayList<Integer> oldEntry = htr.get(key);
 		if(oldEntry != null){
-			oldEntry.add(lineNum);
+			oldEntry.add(lineNum); // (Register as key, lineNum as value)
 		}
+
 		else{
 			ArrayList<Integer> newEntry = new ArrayList<Integer>();
 			newEntry.add(lineNum); 
@@ -177,7 +188,7 @@ public class Scheduler{
  * Anti dependency indicates that it'll take one cycle, and then we can use the next line 
  *		| Value of 1 in Edge.dependType
  */	
-	static void SetupTree(ArrayList<LineInfo> codeBlock){
+	static ArrayList<Integer> SetupTree(ArrayList<LineInfo> codeBlock){
 		Hashtable<String, ArrayList<Integer>> htr = new Hashtable<String, ArrayList<Integer>>(); // hash table of regs read from
 		Hashtable<String, Integer> htw = new Hashtable<String, Integer>(); // hash table of regs written to
 	
@@ -186,7 +197,7 @@ public class Scheduler{
 		
 		// from bottom to top, scan block of code, and create dependency graph
 		while(lineNumber >= 0){
-			LineInfo li = codeBlock.get(lineNumber); 
+			LineInfo li = codeBlock.get(lineNumber);
 			// Need 4 separate keys to add to hash table all at once per line
 			String key1 = null; // read[0]
 			String key2 = null; // read[1]
@@ -194,40 +205,47 @@ public class Scheduler{
 			String key4 = null; // write[1]
 			String[] reads = li.regReads;
 			String[] writes = li.regWrites;
-
-			if(reads[1]!=null && reads[0].equalsIgnoreCase("r0")){
-				int addr = 1024 + Integer.parseInt(reads[1]); //assumption that r0 always is 1024.
-				key1 = String.valueOf(addr);
-				Update_RW_Depend(li, key1, htr, htw);
-
-			}
-			else {
-				// Checks for anti-dependency. htw must have written, then read above it.
-				// Only keep key in hashtable if it does contain as others could've read as well
-				if(reads[0]!=null){
-					key1 = reads[0];
-					Update_RW_Depend(li, key1, htr, htw);
-				}
-				if(reads[1]!=null){
-					key2 = reads[1];
-					Update_RW_Depend(li, key2, htr, htw);
-				}
-			}
-			if(writes[1] != null && writes[0].equalsIgnoreCase("r0")){
-				int addr = 1024 + Integer.parseInt(writes[1]); //assumption that r0 always is 1024.
-				key3 = String.valueOf(addr);
-				Update_WR_Depend(li, key3, htr, htw);
+			ready.add(lineNumber);
+			if(li.cmd.equalsIgnoreCase("loadI") && 
+				writes[0].equalsIgnoreCase("r0") && writes[1] == null ){  // lame hardcoded replacement for init
+				if(!ready.contains(lineNumber))
+					ready.add(0,lineNumber);
 			}
 			else{
-				if(writes[0]!=null){
-					key3 = writes[0];
-					Update_WR_Depend(li, key3, htr, htw);
+				if(reads[1]!=null && reads[0].equalsIgnoreCase("r0")){
+					int addr = 1024 + Integer.parseInt(reads[1]); //assumption that r0 always is 1024.
+					key1 = String.valueOf(addr);
+					Update_RW_Depend(li, key1, htw, ready);
 				}
-				// This is an impossible case that will be only reached by storeAO.
-				// ****** Have to change this *****
-				if(writes[1]!=null){
-					key4 = writes[1];
-					Update_WR_Depend(li, key4, htr, htw);
+				else {
+					// Checks for anti-dependency. htw must have written, then read above it.
+					// Only keep key in hashtable if it does contain as others could've read as well
+					if(reads[0]!=null){
+						key1 = reads[0];
+						Update_RW_Depend(li, key1, htw, ready);
+					}
+					if(reads[1]!=null){
+						key2 = reads[1];
+						Update_RW_Depend(li, key2, htw, ready);
+					}
+				}
+				if(writes[1] != null && writes[0].equalsIgnoreCase("r0")){
+					int addr = 1024 + Integer.parseInt(writes[1]); //assumption that r0 always is 1024.
+					key3 = String.valueOf(addr);
+					Update_WR_Depend(li, key3, htr, ready);
+				}
+				else{
+					// if writes == size 2, it's a READ, then WRITE
+					if(writes[0]!=null){
+						key3 = writes[0];
+						Update_WR_Depend(li, key3, htr, ready);
+					}
+					// This is an impossible case that will be only reached by storeAO.
+					// ****** Have to change this *****
+					if(writes[1]!=null){
+						key4 = writes[1];
+						Update_WR_Depend(li, key4, htr, ready);
+					}
 				}
 			}
 			UpdateReadHash(htr, key1, lineNumber);
@@ -237,7 +255,7 @@ public class Scheduler{
 
 			lineNumber = lineNumber - 1;
 		}
-		//return null; // Can return an array of with two indicies; The tail, and the head
+		return ready;
 	}
 	
 	// Longest Latency Path
@@ -285,8 +303,12 @@ public class Scheduler{
 	
 		ArrayList<LineInfo> codeBlock = LoadLineInfo();
 	//	TestLineInfo(codeBlock);
-		SetupTree(codeBlock); // codeBlock now has edges in each object
+		ArrayList<Integer> readySet = SetupTree(codeBlock); // codeBlock now has edges in each object
 		TestDependencies(codeBlock);
+		System.out.println("Ready set: ");
+		for(int i = 0; i < readySet.size(); i++){
+			System.out.println(readySet.get(i)+1);
+		}
 		if(args.length == 1){
 
 			if(args[0].equalsIgnoreCase("-a")){
