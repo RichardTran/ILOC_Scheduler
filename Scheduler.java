@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.Scanner;
 import java.util.Hashtable;
+import java.util.Collections;
 
 class Edge{
 	int endLineNum; // the line number the edge is pointing to
@@ -15,6 +16,7 @@ class Edge{
 class LineInfo{
 
 	int latency;
+	int llp;
 	String cmd;
 	String[] regReads;
 	String[] regWrites;
@@ -44,6 +46,7 @@ class LineInfo{
 		this.cmd = cmd;
 		regReads = reads;
 		regWrites = writes;
+		llp = 0;
 		edges = new ArrayList<Edge>();
 	}
 
@@ -274,6 +277,49 @@ public class Scheduler{
 	static void Rearrange(){
 		
 	}
+
+	static void AssignCost(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		ArrayList<Integer> copy = new ArrayList<Integer>();
+		//Collections.copy(copy, ready);
+		llp(ready, codeBlock);
+	}
+
+	static void llp(ArrayList<Integer> copy, ArrayList<LineInfo> codeBlock){
+		for(int i = 0; i < copy.size(); i++){
+			LineInfo temp = codeBlock.get(copy.get(i));
+			recursion(temp, codeBlock);
+		}
+	}
+
+	static int recursion(LineInfo li, ArrayList<LineInfo> codeBlock){
+		if(li.llp != 0){
+			return li.llp;
+		}
+		else if(li.edges.size() == 0){
+			li.llp = li.latency;
+			return li.latency;
+		}
+		else{
+			int max = 0;
+			Edge maxEdge = null;
+			for(int i = 0; i < li.edges.size(); i++){
+				int a = recursion(codeBlock.get(li.edges.get(i).endLineNum), codeBlock);
+				if(a > max){
+					max = a;
+					maxEdge = li.edges.get(i);
+				}
+			}
+			li.llp = max;
+			if(maxEdge.dependType == 1){
+				li.llp+=1;
+			}
+			else if(maxEdge.dependType == 2){
+				li.llp+=li.latency;
+			}
+			// add max of dependencies
+			return li.llp;
+		}
+	}
 	
 	static void TestLineInfo(ArrayList<LineInfo> block){
 		for(int i = 0; i < block.size(); i++){
@@ -290,11 +336,12 @@ public class Scheduler{
 			ArrayList<Edge> edges = block.get(i).edges;
 			System.out.println("Node: "+ (i+1));
 			System.out.println("Cmd: " + block.get(i).cmd);
+			System.out.println("LLP: " + block.get(i).llp);
 			for(int j = 0; j < edges.size(); j++){
 				System.out.println("To node: " + (edges.get(j).endLineNum+1));
 				System.out.println("DependType: " + edges.get(j).dependType);
-				System.out.println();
 			}
+			System.out.println();
 		}
 	}
 	
@@ -304,6 +351,8 @@ public class Scheduler{
 		ArrayList<LineInfo> codeBlock = LoadLineInfo();
 	//	TestLineInfo(codeBlock);
 		ArrayList<Integer> readySet = SetupTree(codeBlock); // codeBlock now has edges in each object
+		
+		AssignCost(readySet, codeBlock);
 		TestDependencies(codeBlock);
 		System.out.println("Ready set: ");
 		for(int i = 0; i < readySet.size(); i++){
