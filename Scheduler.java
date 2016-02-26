@@ -20,6 +20,7 @@ class LineInfo{
 	String cmd;
 	String[] regReads;
 	String[] regWrites;
+	int parents;
 	ArrayList<Edge> edges;
 
 	public LineInfo(String cmd, String[] reads, String[] writes){
@@ -47,6 +48,7 @@ class LineInfo{
 		regReads = reads;
 		regWrites = writes;
 		llp = 0;
+		parents = 0; // used to indicate whether the node can be in the ready based on how many parents it has.
 		edges = new ArrayList<Edge>();
 	}
 
@@ -265,18 +267,17 @@ public class Scheduler{
 	}
 	
 
-	static LineInfo FindInit(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+	static int FindRemoveInit(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
 		for(int i = 0; i < ready.size(); i++){
 			LineInfo li = codeBlock.get(ready.get(i));
 			String[] reads = li.regReads;
 			String[] writes = li.regWrites;
 			if(li.cmd.equalsIgnoreCase("loadI") && 
 				writes[0].equalsIgnoreCase("r0") && writes[1] == null ){  // lame hardcoded replacement for init
-				ready.remove(i);
-				return li;
+				return ready.remove(i); 
 			}
 		}
-		return null; // error
+		return -1; // error
 	}
 
 
@@ -297,7 +298,7 @@ public class Scheduler{
 		if(li.llp != 0){
 			return li.llp;
 		}
-		else if(li.edges.size() == 0){
+		else if(li.edges.size() == 0){ // biggest child
 			li.llp = li.latency;
 			return li.latency;
 		}
@@ -305,6 +306,7 @@ public class Scheduler{
 			int max = 0;
 			Edge maxEdge = null;
 			for(int i = 0; i < li.edges.size(); i++){
+				codeBlock.get(li.edges.get(i).endLineNum).parents+=1;
 				int a = recursion(codeBlock.get(li.edges.get(i).endLineNum), codeBlock);
 				if(a > max){
 					max = a;
@@ -325,44 +327,133 @@ public class Scheduler{
 	}
 
 	// Longest Latency Path
-	static void ScheduleA(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
-		
+	static int ScheduleA(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		int maxLLP = 0;
+		int indexOfMax = 0;
+		for(int i = 0; i < ready.size(); i++){
+			int temp = codeBlock.get(ready.get(i)).llp;
+			if(maxLLP < temp) {
+				indexOfMax = i; // the index in the readySet.
+				maxLLP = temp;
+			}
+		}
+		return indexOfMax; // index of line with highest LLP
 	}
 
 	// Highest Cost
-	static void ScheduleB(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
-		
+	static int ScheduleB(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		// decide on what to remove from ready. if none in ready, return null
+		int maxLatency = 0;
+		int indexOfMax = 0;
+		for(int i = 0; i < ready.size(); i++){
+			int temp = codeBlock.get(ready.get(i)).latency;
+			if(maxLatency < temp) {
+				indexOfMax = i;
+				maxLatency = temp;
+			}
+		}
+		return indexOfMax; // index of line with highest LLP
+
 	}
 
 	// FIFO. EASY
-	static void ScheduleC(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
-		
+	static int ScheduleC(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		return 0;
 	}
 
 
 	/*
 		The final function to arrange the codeBlock to the reorganize output. It accesses
+
+		Notes: Whenever a command is 'plucked' from the ready, we put it in both output, and active.
+		Active is used to keep in check what finishes. If a command's cycle reaches 0, remove it from active
+			and push all of it's dependencies into the ready.
+		Output arraylist is static to record which entries were called.
 	*/
-	static void Rearrange(String schedule, ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+	static ArrayList<LineInfo> Rearrange(String schedule, ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
 		int cycle = 1;
 		ArrayList<LineInfo> output = new ArrayList<LineInfo>(); // the final output to be returned
-		ArrayList<Integer> active = new ArrayList<Integer>();
-		
-		cycle++;
-		FindInit(ready, codeBlock);
-		while(ready.size() + active.size() != 0){
-			if(schedule.equalsIgnoreCase("-a")){
-				
-			}
-			else if(schedule.equalsIgnoreCase("-b")){
+		ArrayList<LineInfo> active = new ArrayList<LineInfo>();
 
+		int init = FindRemoveInit(ready, codeBlock);   // Find and remove loadI 1024 => 
+													   // r0 always is first and runs on cycle 1
+		output.add(codeBlock.get(init)); // Assume 1 cycle has passed and init moves from active to output				
+		cycle++;								 // Takes 1 cycle, so cycle is at 2 now.
+	
+		int readyIndex = -1;
+		while((ready.size() + active.size()) != 0){ // Now ready to do some COOL scheduling FINALLY.
+			// these if's determine which to remove from ready list
+			if(ready.size() != 0){
+				if(schedule.equalsIgnoreCase("-a")){
+					readyIndex = ScheduleA(ready,codeBlock);
+				}
+				else if(schedule.equalsIgnoreCase("-b")){
+					readyIndex = ScheduleB(ready,codeBlock);
+				}
+				else if(schedule.equalsIgnoreCase("-c")){
+					readyIndex = ScheduleC(ready,codeBlock);
+				}
+				else{
+					readyIndex = -1;
+					System.err.println("Error in Rearrange. Received bad argument somehow. Must be -a -b or -c");
+				}
+				int r = ready.get(readyIndex);
+				LineInfo nextCmd = codeBlock.get(r);
+				ready.remove(readyIndex);
+				output.add(nextCmd);
+				active.add(nextCmd);
 			}
-			else if(schedule.equalsIgnoreCase("-c")){
+			//Else, print out nops
 
+			cycle++;
+			for(int i = 0; i < active.size(); i++){
+				LineInfo activeInfo = active.get(i);
+				activeInfo.latency = activeInfo.latency - 1;
+				if(activeInfo.latency == 0){
+					active.remove(i); // cmd has finished its cycle
+					// Here, after removing it from the active list, the finished commmand
+					// Look at its children, and take away a "parent point".
+					// If parent = 0, add to ready list. 
+					for(int j = 0; j < activeInfo.edges.size(); j++){
+						Edge e = activeInfo.edges.get(j); // get a dependency
+						LineInfo li = codeBlock.get(e.endLineNum);
+						li.parents -= 1;
+						if(li.parents == 0){
+							ready.add(e.endLineNum);// add to ready List
+						}
+					}
+				}
 			}
 		}
+		return output;
 	}
 	
+	static void printOutput(ArrayList<LineInfo> output){
+		for(int i = 0; i < output.size(); i++){
+			LineInfo out = output.get(i);
+			System.out.print('\t' + out.cmd + " ");
+			if(out.cmd.equalsIgnoreCase("nop")){
+				System.out.println();
+				continue;
+			}
+			if(out.regReads[1] == null){
+				System.out.print(out.regReads[0] + '\t');
+			}
+			else{
+				System.out.print(out.regReads[0]+", "+out.regReads[1] + '\t');
+			}
+			if(!out.cmd.equalsIgnoreCase("output")){
+				if(out.regWrites[1] == null){
+					System.out.print("=> " + out.regWrites[0]);
+				}
+				else{
+					System.out.print("=> " + out.regWrites[0]+", "+out.regWrites[1]);
+				}
+			}
+			System.out.println();
+		}
+	}
+
 	static void TestLineInfo(ArrayList<LineInfo> block){
 		for(int i = 0; i < block.size(); i++){
 			System.out.println("Command is: " + block.get(i).cmd);
@@ -380,6 +471,7 @@ public class Scheduler{
 			System.out.println("Cmd: " + block.get(i).cmd);
 			System.out.println("Latency: " + block.get(i).latency);
 			System.out.println("LLP: " + block.get(i).llp);
+			System.out.println("Parents: " + block.get(i).parents);
 			for(int j = 0; j < edges.size(); j++){
 				System.out.println("To node: " + (edges.get(j).endLineNum+1));
 				System.out.println("DependType: " + edges.get(j).dependType);
@@ -392,33 +484,37 @@ public class Scheduler{
 	public static void main(String[] args){		
 	
 		ArrayList<LineInfo> codeBlock = LoadLineInfo();
+		ArrayList<LineInfo> newSchedule;
 	//	TestLineInfo(codeBlock);
-		ArrayList<Integer> readySet = SetupTree(codeBlock); // codeBlock now has edges in each object
+		ArrayList<Integer> readySet = SetupTree(codeBlock); // initial ready set
 		
-		AssignCost(readySet, codeBlock);
-		TestDependencies(codeBlock);
-		System.out.println("Ready set: ");
+		AssignCost(readySet, codeBlock); // assigns the LLP's
+	//	TestDependencies(codeBlock);
+	/*	System.out.println("Ready set: ");
 		for(int i = 0; i < readySet.size(); i++){
 			System.out.println(readySet.get(i)+1);
-		}
+		}*/
 		if(args.length == 1){
 
 			if(args[0].equalsIgnoreCase("-a")){
-				
+				newSchedule = Rearrange("-a", readySet, codeBlock);
 			}
 			else if(args[0].equalsIgnoreCase("-b")){
 				// implement highest path cost
+				newSchedule = Rearrange("-b", readySet, codeBlock);
 			}
 			else if(args[0].equalsIgnoreCase("-c")){
 				// implement custom
+				newSchedule = Rearrange("-c", readySet, codeBlock);
 			}
 			else{
 				System.err.println("Incorrect argument");
 				return;
 			}
+			printOutput(newSchedule);
 		}
 		else{
-			System.out.println("Please enter -a, -b, or -c as an argument");
+			System.out.println("Please enter \"java Scheduler (-a|-b|-c) < (filename.iloc)\"");
 		}
 	}
 }
