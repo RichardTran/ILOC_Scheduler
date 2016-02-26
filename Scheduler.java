@@ -121,6 +121,8 @@ public class Scheduler{
 			int endLineNum = htw.get(key); // retrieve the node from hashtable with Key
 			int dependType = 1;
 			li.AddEdge(new Edge(endLineNum, dependType));
+
+			// A dependency is removed from the initial ready list as it has to wait for its parent.
 			if(ready.contains(endLineNum)){
 				Integer x = endLineNum;
 				ready.remove((Integer)x);
@@ -140,6 +142,7 @@ public class Scheduler{
 			int dependType = 2;
 			for(int i = 0; i < endLineNums.size(); i++){
 				int endLineNum = endLineNums.get(i);
+				// A dependency is removed from the initial ready list as it has to wait for its parent.
 				if(ready.contains(endLineNum)){
 					Integer x = endLineNum;
 					ready.remove((Integer)x);
@@ -261,22 +264,21 @@ public class Scheduler{
 		return ready;
 	}
 	
-	// Longest Latency Path
-	static void ScheduleA(){
-		
+
+	static LineInfo FindInit(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		for(int i = 0; i < ready.size(); i++){
+			LineInfo li = codeBlock.get(ready.get(i));
+			String[] reads = li.regReads;
+			String[] writes = li.regWrites;
+			if(li.cmd.equalsIgnoreCase("loadI") && 
+				writes[0].equalsIgnoreCase("r0") && writes[1] == null ){  // lame hardcoded replacement for init
+				ready.remove(i);
+				return li;
+			}
+		}
+		return null; // error
 	}
 
-	static void ScheduleB(){
-		
-	}
-
-	static void ScheduleC(){
-		
-	}
-
-	static void Rearrange(){
-		
-	}
 
 	static void AssignCost(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
 		ArrayList<Integer> copy = new ArrayList<Integer>();
@@ -284,9 +286,9 @@ public class Scheduler{
 		llp(ready, codeBlock);
 	}
 
-	static void llp(ArrayList<Integer> copy, ArrayList<LineInfo> codeBlock){
-		for(int i = 0; i < copy.size(); i++){
-			LineInfo temp = codeBlock.get(copy.get(i));
+	static void llp(ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		for(int i = 0; i < ready.size(); i++){
+			LineInfo temp = codeBlock.get(ready.get(i));
 			recursion(temp, codeBlock);
 		}
 	}
@@ -311,13 +313,53 @@ public class Scheduler{
 			}
 			li.llp = max;
 			if(maxEdge.dependType == 1){
-				li.llp+=1;
+				li.latency = 1;
+				li.llp += li.latency;
 			}
 			else if(maxEdge.dependType == 2){
 				li.llp+=li.latency;
 			}
 			// add max of dependencies
 			return li.llp;
+		}
+	}
+
+	// Longest Latency Path
+	static void ScheduleA(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
+		
+	}
+
+	// Highest Cost
+	static void ScheduleB(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
+		
+	}
+
+	// FIFO. EASY
+	static void ScheduleC(ArrayList<Integer> ready, ArrayList<Integer> active, ArrayList<LineInfo> codeBlock){
+		
+	}
+
+
+	/*
+		The final function to arrange the codeBlock to the reorganize output. It accesses
+	*/
+	static void Rearrange(String schedule, ArrayList<Integer> ready, ArrayList<LineInfo> codeBlock){
+		int cycle = 1;
+		ArrayList<LineInfo> output = new ArrayList<LineInfo>(); // the final output to be returned
+		ArrayList<Integer> active = new ArrayList<Integer>();
+		
+		cycle++;
+		FindInit(ready, codeBlock);
+		while(ready.size() + active.size() != 0){
+			if(schedule.equalsIgnoreCase("-a")){
+				
+			}
+			else if(schedule.equalsIgnoreCase("-b")){
+
+			}
+			else if(schedule.equalsIgnoreCase("-c")){
+
+			}
 		}
 	}
 	
@@ -336,6 +378,7 @@ public class Scheduler{
 			ArrayList<Edge> edges = block.get(i).edges;
 			System.out.println("Node: "+ (i+1));
 			System.out.println("Cmd: " + block.get(i).cmd);
+			System.out.println("Latency: " + block.get(i).latency);
 			System.out.println("LLP: " + block.get(i).llp);
 			for(int j = 0; j < edges.size(); j++){
 				System.out.println("To node: " + (edges.get(j).endLineNum+1));
